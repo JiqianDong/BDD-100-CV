@@ -34,6 +34,8 @@ class BDD_OIA(Dataset):
                     self.reasons.append(torch.FloatTensor(reason[i]['reason']))
 
         self.count = len(self.imgNames)
+
+        print(len(self.reasons),len(self.targets),len(self.imgNames))
         print("number of samples in dataset:{}".format(self.count))
 
     def __len__(self):
