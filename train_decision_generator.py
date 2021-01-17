@@ -2,28 +2,9 @@ from imports import *
 
 from datasets.bdd_oia import BDD_OIA
 
-from decision_generator_model import DecisionGenerator
+from decision_generator_model import DecisionGenerator_v3
 
 
-device = torch.device("cuda:0")
-batch_size = 10
-
-
-
-## Data loader
-image_dir = './data/bdd_oia/lastframe/data/'
-label_dir = './data/bdd_oia/lastframe/labels/'
-
-
-bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'train_25k_images_actions.json',
-                             label_dir+'train_25k_images_reasons.json')
-
-training_loader = DataLoader(bdd_oia_dataset,
-                            shuffle=True,
-                            batch_size=batch_size,
-                            num_workers=0,
-                            drop_last=True,
-                            collate_fn=utils.collate_fn)
 
 
 
@@ -39,8 +20,6 @@ def get_model(num_classes,image_mean=bdd_oia_dataset.mean,image_std=bdd_oia_data
 
 
 
-writer = SummaryWriter('./runs/sgd2/')
-num_iters = 0
 
 
 def train_one_epoch2(model, optimizer, data_loader, device, epoch, print_freq):
@@ -88,34 +67,73 @@ def train_one_epoch2(model, optimizer, data_loader, device, epoch, print_freq):
 
 
 
-fastercnn = get_model(10)
-checkpoint = torch.load('saved_models/bdd100k_24.pth')
-fastercnn.load_state_dict(checkpoint['model'])
-
-decision_generator = DecisionGenerator(fastercnn,device,batch_size)
-decision_generator = decision_generator.to(device)
-params = [p for p in decision_generator.parameters() if p.requires_grad]
-optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
-# optimizer = torch.optim.Adam(params,lr=0.001, weight_decay=5e-5)
-# lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=1e-3, max_lr=6e-3)
-lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+def get_loader():
+    ## Data loader
+    image_dir = './data/bdd_oia/lastframe/data/'
+    label_dir = './data/bdd_oia/lastframe/labels/'
 
 
+    bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'train_25k_images_actions.json',
+                                label_dir+'train_25k_images_reasons.json')
 
-num_epochs = 70
-for epoch in tqdm(range(num_epochs)):
-    try:
+    training_loader = DataLoader(bdd_oia_dataset,
+                                shuffle=True,
+                                batch_size=batch_size,
+                                num_workers=0,
+                                drop_last=True,
+                                collate_fn=utils.collate_fn)
+
+    return training_loader
+
+if __name__ == "__main__":
+    
+    device = torch.device("cuda:0")
+    batch_size = 10
+    
+    training_loader = get_loader()
+
+    model_name = 'v3_sgd'
+
+
+    writer = SummaryWriter('./runs/'+model_name+'/')
+    num_iters = 0
+
+    fastercnn = get_model(10)
+    checkpoint = torch.load('saved_models/bdd100k_24.pth')
+    fastercnn.load_state_dict(checkpoint['model'])
+
+    decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size)
+    decision_generator = decision_generator.to(device)
+
+    #### continue training 
+    # checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/Jiqian project/saved_models/bdd_oia_head1_39.pth")
+    # decision_generator.load_state_dict(checkpoint["model"])
+
+
+    params = [p for p in decision_generator.parameters() if p.requires_grad]
+    optimizer = torch.optim.SGD(params, lr=0.001, momentum=0.9, weight_decay=0.0005)
+    # optimizer = torch.optim.Adam(params,lr=0.001, weight_decay=5e-5)
+    # lr_scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=1e-3, max_lr=6e-3)
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+
+
+
+    num_epochs = 40
+    for epoch in tqdm(range(num_epochs)):
+        # try:
         loss_value = train_one_epoch2(decision_generator, optimizer, training_loader, device, epoch, print_freq=200)
         lr_scheduler.step(loss_value)
-    except Exception as e:
-        print(e)
-    
-    # train_one_epoch2(decision_generator, optimizer, training_loader, device, epoch, print_freq=200)
+        # except Exception as e:
+        #     print(e)
+        
+        # train_one_epoch2(decision_generator, optimizer, training_loader, device, epoch, print_freq=200)
 
-    if (epoch+1)%10==0:
-        save_name = "../saved_models/bdd_oia_sgd2" + str(epoch) + ".pth"
-        torch.save(
-            {"model": decision_generator.state_dict(), "optimizer": optimizer.state_dict(),},
-            save_name,
-        )
-        print("Saved model", save_name)
+        if (epoch+1)%20==0:
+            save_name = "../saved_models/%s"%model_name + str(epoch) + ".pth"
+            torch.save(
+                {"model": decision_generator.state_dict(), "optimizer": optimizer.state_dict(),},
+                save_name,
+            )
+            print("Saved model", save_name)
+
+
