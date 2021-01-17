@@ -8,7 +8,7 @@ from decision_generator_model import DecisionGenerator_v3
 
 
 
-def get_model(num_classes,image_mean=bdd_oia_dataset.mean,image_std=bdd_oia_dataset.std):
+def get_model(num_classes,image_mean=None,image_std=None):
     # model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True,
     #                                                             image_mean=image_mean,
     #                                                             image_std=image_std)
@@ -86,14 +86,14 @@ def get_loader():
     return training_loader
 
 if __name__ == "__main__":
+
+    model_name = 'v3_hard_sel'
+    version = 'v3'
     
     device = torch.device("cuda:0")
     batch_size = 10
     
     training_loader = get_loader()
-
-    model_name = 'v3_sgd'
-
 
     writer = SummaryWriter('./runs/'+model_name+'/')
     num_iters = 0

@@ -169,29 +169,33 @@ class DecisionGenerator_v1(nn.Module):
 
 
 class DecisionGenerator_v3(nn.Module): # attention with only one layer
-    def __init__(self,faster_rcnn_model,device,batch_size,action_num=4,explanation_num=21,freeze_rcnn=True):
+    def __init__(self,faster_rcnn_model,device,batch_size,select_k=5,action_num=4,explanation_num=21,freeze_rcnn=True):
         super().__init__()
 
         self.rcnn = faster_rcnn_model
         self.batch_size = batch_size
+        self.select_k = select_k
 
         if freeze_rcnn:
             for param in self.rcnn.parameters():
                 param.requires_grad = False
                 self.rcnn.eval()
 
-        self.attention_score = nn.Sequential(nn.Linear(1024,1),nn.Softmax(dim=1))
+        self.attention_score = nn.Sequential(nn.Linear(1024,512),
+                                             nn.ReLU(),
+                                             nn.Linear(512,1),
+                                             nn.Softmax(dim=1))
 
-        self.roi_pooling_conv = nn.Conv1d(in_channels=1000,out_channels=5,kernel_size=1)
+        self.roi_pooling_conv = nn.Conv1d(in_channels=1000,out_channels=select_k,kernel_size=1)
 
         self.action_branch = nn.Sequential(
-                                nn.Linear(5120, 1024),
+                                nn.Linear(select_k*1024, 1024),
                                 nn.ReLU(),
                                 # nn.Dropout(),
                                 nn.Linear(1024, action_num))
 
         self.explanation_branch = nn.Sequential(
-                                nn.Linear(5120, 1024),
+                                nn.Linear(select_k*1024, 1024),
                                 nn.ReLU(),
                                 # nn.Dropout(),
                                 nn.Linear(1024, explanation_num))
@@ -224,12 +228,14 @@ class DecisionGenerator_v3(nn.Module): # attention with only one layer
             box_features = self.rcnn.roi_heads.box_head(box_features).view(batch_size, -1, 1024)  #(B, num_proposal, 1024)
         
         score = self.attention_score(box_features) #(B, num_proposal, 1024)
-        box_features = box_features * score
+        _,ind = torch.topk(score,k=self.select_k,dim=1)
+        ### cnn for dimensional reduction
+        # box_features = box_features * score
+        # feature_polled = self.roi_pooling_conv(box_features)
 
-        feature_polled = self.roi_pooling_conv(box_features)
-        # print(feature_polled.shape)
+        feature_polled = torch.gather(box_features,1,ind.expand(ind.size(0),ind.size(1),box_features.size(2))) #select_top_k
+
         feature_polled = torch.flatten(feature_polled,start_dim=1)
-        # print(feature_polled.shape)
 
         actions = self.action_branch(feature_polled)
         reasons = self.explanation_branch(feature_polled)
