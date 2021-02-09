@@ -5,6 +5,7 @@ import pickle
 import xml.etree.ElementTree as ET
 from glob import glob
 from pathlib import Path
+import pandas as pd
 
 import matplotlib
 import matplotlib.patches as patches

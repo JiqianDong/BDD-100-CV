@@ -2,7 +2,7 @@ from imports import *
 
 from datasets.bdd_oia import BDD_OIA
 
-from decision_generator_model import DecisionGenerator_v3
+from decision_generator_model import *
 
 
 
@@ -87,8 +87,9 @@ def get_loader():
 
 if __name__ == "__main__":
 
-    model_name = 'v3_hard_sel'
-    version = 'v3'
+    model_name = 'v4_mhsa_test'
+    version = 'v4'
+    # sel_k = 10
     
     device = torch.device("cuda:0")
     batch_size = 10
@@ -102,11 +103,18 @@ if __name__ == "__main__":
     checkpoint = torch.load('saved_models/bdd100k_24.pth')
     fastercnn.load_state_dict(checkpoint['model'])
 
-    decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size)
+    if version == 'v3':
+        decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
+    elif version == 'v1':
+        decision_generator = DecisionGenerator_v1(fastercnn,device, batch_size)
+    elif version == 'v4':
+        decision_generator = DecisionGenerator_v4(fastercnn,device, batch_size)
+    else:
+        decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
     decision_generator = decision_generator.to(device)
 
     #### continue training 
-    # checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/Jiqian project/saved_models/bdd_oia_head1_39.pth")
+    # checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/v3_hard_sel_1039.pth")
     # decision_generator.load_state_dict(checkpoint["model"])
 
 

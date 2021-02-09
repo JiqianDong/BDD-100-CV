@@ -53,3 +53,40 @@ class BDD_OIA(Dataset):
         img,tgt = self.transform(img_,target)
 
         return img,tgt
+
+
+
+class BDD_SUBSET(Dataset):
+    def __init__(self, image_root, label_root, label_dic_root):
+        super().__init__()
+
+        self.mean=[102.9801, 115.9465, 122.7717]
+        self.std=[1., 1., 1.]
+
+        self._processing(imageRoot, labelRoot, )
+
+        self.transform = T.Compose([T.ToTensor()])
+
+    def _processing(self, labelRoot):
+        data_df = pd.read_csv(labelRoot)
+
+        self.count = len(self.imgNames)
+
+        print(len(self.reasons),len(self.targets),len(self.imgNames))
+        print("number of samples in dataset:{}".format(self.count))
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, idx):
+        # test = True
+        imgName = self.imgNames[idx]
+        target = {}
+        target['action'] = self.targets[idx][:4]
+        target['reason'] = self.reasons[idx]
+
+        img_ = Image.open(imgName)
+
+        img,tgt = self.transform(img_,target)
+
+        return img,tgt

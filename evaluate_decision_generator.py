@@ -2,16 +2,15 @@ from imports import *
 
 from datasets.bdd_oia import BDD_OIA
 
-from decision_generator_model import DecisionGenerator_v3, DecisionGenerator, DecisionGenerator_v1
+from decision_generator_model import *
 
 from sklearn.metrics import f1_score
 
 
 
-def main(model_name,version=None):
-    device = torch.device("cuda:1")
+def main(model_name,version=None,sel_k=10):
+    device = torch.device("cuda:0")
     batch_size = 10
-
     ## Data loader
     image_dir = './data/bdd_oia/lastframe/data/'
     label_dir = './data/bdd_oia/lastframe/labels/'
@@ -49,12 +48,14 @@ def main(model_name,version=None):
     fastercnn.load_state_dict(checkpoint['model'])
 
     if version=='v3':
-        decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size)
-    elif version == 'v2':
+        decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
+    elif version == 'v1':
         decision_generator = DecisionGenerator_v1(fastercnn,device,batch_size)
+    elif version == 'v4':
+        decision_generator = DecisionGenerator_v4(fastercnn,device, batch_size)
     else:
         ############# Load version 2 ###########################
-        decision_generator = DecisionGenerator(fastercnn,device,batch_size)
+        decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
     decision_generator = decision_generator.to(device)
 
     checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/%s.pth"%model_name)
@@ -128,6 +129,9 @@ def main(model_name,version=None):
 
 
 if __name__ == "__main__":
-    model_name = 'bdd_oia_v3_39'
-    version = 'v3'
+    # model_name = 'v3_hard_sel_1039'
+    # version = 'v3'
+    model_name = 'v4_mhsa_test39'
+    version = 'v4'
+    sel_k = 10
     main(model_name,version)
