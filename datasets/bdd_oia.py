@@ -57,35 +57,42 @@ class BDD_OIA(Dataset):
 
 
 class BDD_SUBSET(Dataset):
-    def __init__(self, image_root, label_root, label_dic_root):
+    def __init__(self, image_root, label_root, ind_to_word_root):
         super().__init__()
+        import torchvision.transforms as T
 
+        self.image_root = image_root
         self.mean=[102.9801, 115.9465, 122.7717]
         self.std=[1., 1., 1.]
 
-        self._processing(imageRoot, labelRoot, )
+        self._processing(label_root)
 
-        self.transform = T.Compose([T.ToTensor()])
+        self.transform = T.Compose([T.ToTensor(),
+                                   T.Normalize(self.mean,self.std)])
 
-    def _processing(self, labelRoot):
-        data_df = pd.read_csv(labelRoot)
+    def _processing(self, label_root, label_dic_root):
+        data_df = pd.read_csv(label_root)
 
-        self.count = len(self.imgNames)
-
-        print(len(self.reasons),len(self.targets),len(self.imgNames))
+        self.count = len(data_df)
+        self.all_images = data_df['file_name']
+        self.all_reasons = data_df['reason_lang_ind']
+        self.all_actions = data_df['action']
         print("number of samples in dataset:{}".format(self.count))
+
+        with open(label_dic_root,'rb') as f:
+            self.ind_to_word = pickle.load(f)
 
     def __len__(self):
         return self.count
 
     def __getitem__(self, idx):
         # test = True
-        imgName = self.imgNames[idx]
         target = {}
-        target['action'] = self.targets[idx][:4]
-        target['reason'] = self.reasons[idx]
+        image_name = self.all_images[idx]
+        target['action'] = self.all_actions[idx][:4]
+        target['reason'] = self.all_reasons[idx]
 
-        img_ = Image.open(imgName)
+        img_ = Image.open(self.image_root + image_name)
 
         img,tgt = self.transform(img_,target)
 
