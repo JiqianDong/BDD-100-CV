@@ -6,9 +6,13 @@ from soft_attention_model import *
 
 
 
-def get_encoder():
-    mobilenet = torchvision.models.mobilenet_v2(pretrained=True)
-    encoder = nn.Sequential(*list(mobilenet.children())[:-1])
+def get_encoder(model_name):
+    if model_name == 'mobile_net':
+        md = torchvision.models.mobilenet_v2(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-1])
+    elif model_name == 'resnet':
+        md = torchvision.models.resnet50(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-2])
     return encoder
 
 
@@ -73,11 +77,16 @@ def get_loader(batch_size):
     return training_loader,NULL_INDEX,DICT_SIZE
 
 if __name__ == "__main__":
+    encoder_model = 'resnet'
+    image_f_dim = 2048  
+    model_name = 'soft_attention_resnet'
 
-    model_name = 'soft_attention'
+    # encoder_model = 'mobile_net'
+    # image_f_dim = 1280
+    # model_name = 'soft_attention'
+
     version = 'v1'
     num_epochs = 15
-    # sel_k = 10
     
     DEVICE = torch.device("cuda:1")
     batch_size = 10
@@ -86,8 +95,8 @@ if __name__ == "__main__":
 
     writer = SummaryWriter('./runs/soft_attention/'+model_name+'/')
 
-    encoder = get_encoder()
-    decoder = ReasonDecoder(image_f_dim=1280,\
+    encoder = get_encoder(encoder_model)
+    decoder = ReasonDecoder(image_f_dim=image_f_dim,\
                             embedding_dim=128, \
                             hidden_dim=128, \
                             dict_size=DICT_SIZE, \
