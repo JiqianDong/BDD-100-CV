@@ -5,14 +5,20 @@ from datasets.bdd_oia import BDD_OIA
 from decision_generator_model import *
 
 
-
+def get_encoder(model_name):
+    if model_name == 'mobile_net':
+        md = torchvision.models.mobilenet_v2(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-1])
+    elif model_name == 'resnet':
+        md = torchvision.models.resnet50(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-2])
+    return encoder
 
 
 def get_model(num_classes,image_mean=None,image_std=None):
     # model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True,
     #                                                             image_mean=image_mean,
     #                                                             image_std=image_std)
-
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features,num_classes)
@@ -67,14 +73,21 @@ def train_one_epoch2(model, optimizer, data_loader, device, epoch, print_freq):
 
 
 
-def get_loader():
+def get_loader(version):
     ## Data loader
     image_dir = './data/bdd_oia/lastframe/data/'
     label_dir = './data/bdd_oia/lastframe/labels/'
 
 
-    bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'train_25k_images_actions.json',
-                                label_dir+'train_25k_images_reasons.json')
+
+
+    if version == "whole_attention":
+        bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'train_25k_images_actions.json',
+                                    label_dir+'train_25k_images_reasons.json',
+                                    image_min_size=180)
+    else:
+        bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'train_25k_images_actions.json',
+                                    label_dir+'train_25k_images_reasons.json')
 
     training_loader = DataLoader(bdd_oia_dataset,
                                 shuffle=True,
@@ -87,30 +100,43 @@ def get_loader():
 
 if __name__ == "__main__":
 
-    model_name = 'v4_mhsa_test'
-    version = 'v4'
+    model_name = "whole_attention_v1_"
+    version = "whole_attention"
+
+
+    # model_name = 'v4_mhsa_test'
+    # version = 'v4'
     # sel_k = 10
     
     device = torch.device("cuda:0")
     batch_size = 10
+    training_loader = get_loader(version)
+
     
-    training_loader = get_loader()
 
-    writer = SummaryWriter('./runs/'+model_name+'/')
     num_iters = 0
+    if version == 'whole_attention':
+        encoder = get_encoder("mobile_net")
+        decision_generator = DecisionGenerator_whole_attention(encoder,
+                                                               encoder_dims=(1280,6,10),
+                                                               device=device)
 
-    fastercnn = get_model(10)
-    checkpoint = torch.load('saved_models/bdd100k_24.pth')
-    fastercnn.load_state_dict(checkpoint['model'])
-
-    if version == 'v3':
-        decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
-    elif version == 'v1':
-        decision_generator = DecisionGenerator_v1(fastercnn,device, batch_size)
-    elif version == 'v4':
-        decision_generator = DecisionGenerator_v4(fastercnn,device, batch_size)
+        writer = SummaryWriter('./runs/whole_attention/'+model_name+'/')
     else:
-        decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
+        fastercnn = get_model(10)
+        checkpoint = torch.load('saved_models/bdd100k_24.pth')
+        fastercnn.load_state_dict(checkpoint['model'])
+        writer = SummaryWriter('./runs/'+model_name+'/')
+
+        if version == 'v3':
+            decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
+        elif version == 'v1':
+            decision_generator = DecisionGenerator_v1(fastercnn,device, batch_size)
+        elif version == 'v4':
+            decision_generator = DecisionGenerator_v4(fastercnn,device, batch_size)
+        else:
+            decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
+    
     decision_generator = decision_generator.to(device)
 
     #### continue training 
@@ -137,7 +163,11 @@ if __name__ == "__main__":
         # train_one_epoch2(decision_generator, optimizer, training_loader, device, epoch, print_freq=200)
 
         if (epoch+1)%20==0:
-            save_name = "../saved_models/%s"%model_name + str(epoch) + ".pth"
+            if version == "whole_attention":
+                save_name = "../saved_models/whole_attention/%s"%model_name + str(epoch) + ".pth"
+            else:
+                save_name = "../saved_models/%s"%model_name + str(epoch) + ".pth"
+
             torch.save(
                 {"model": decision_generator.state_dict(), "optimizer": optimizer.state_dict(),},
                 save_name,
