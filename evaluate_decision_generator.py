@@ -7,6 +7,14 @@ from decision_generator_model import *
 from sklearn.metrics import f1_score
 
 
+def get_encoder(model_name):
+    if model_name == 'mobile_net':
+        md = torchvision.models.mobilenet_v2(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-1])
+    elif model_name == 'resnet':
+        md = torchvision.models.resnet50(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-2])
+    return encoder
 
 def main(model_name,version=None,sel_k=10):
     device = torch.device("cuda:0")
@@ -26,7 +34,7 @@ def main(model_name,version=None,sel_k=10):
     #                             collate_fn=utils.collate_fn)
 
     val_bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'val_25k_images_actions.json',
-                                label_dir+'val_25k_images_reasons.json')
+                                label_dir+'val_25k_images_reasons.json',image_min_size=180)
 
     val_loader = DataLoader(val_bdd_oia_dataset,shuffle=False,batch_size=batch_size,collate_fn=utils.collate_fn)
 
@@ -47,18 +55,27 @@ def main(model_name,version=None,sel_k=10):
     checkpoint = torch.load('saved_models/bdd100k_24.pth')
     fastercnn.load_state_dict(checkpoint['model'])
 
-    if version=='v3':
-        decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
-    elif version == 'v1':
-        decision_generator = DecisionGenerator_v1(fastercnn,device,batch_size)
-    elif version == 'v4':
-        decision_generator = DecisionGenerator_v4(fastercnn,device, batch_size)
-    else:
-        ############# Load version 2 ###########################
-        decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
-    decision_generator = decision_generator.to(device)
+    if version == "whole_attention":
+        encoder = get_encoder("mobile_net")
+        decision_generator = DecisionGenerator_whole_attention(encoder,
+                                                               encoder_dims=(1280,6,10),
+                                                               device=device)
 
-    checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/%s.pth"%model_name)
+        checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/whole_attention/%s.pth"%model_name)
+    else:
+        if version=='v3':
+            decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
+        elif version == 'v1':
+            decision_generator = DecisionGenerator_v1(fastercnn,device,batch_size)
+        elif version == 'v4':
+            decision_generator = DecisionGenerator_v4(fastercnn,device, batch_size)
+        else:
+            ############# Load version 2 ###########################
+            decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
+            checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/%s.pth"%model_name)
+        
+    decision_generator = decision_generator.to(device)
+    
     decision_generator.load_state_dict(checkpoint["model"])
     
 
@@ -72,7 +89,6 @@ def main(model_name,version=None,sel_k=10):
 
     ############################################################
 
-    decision_generator = decision_generator.to(device)
     decision_generator.eval()
 
     count = val_loader.__len__()
@@ -114,24 +130,28 @@ def main(model_name,version=None,sel_k=10):
     print('action f1: ', action_f1)
     print('reason_f1: ', reason_f1)
 
-
-    with open('./saved_predictions/pred_action_' + model_name +'.npy','wb') as f:
+    if version == "whole_attention":
+        root_dir = './saved_predictions/whole_attention/'
+    else:
+        root_dir = './saved_predictions/'
+    with open(root_dir+'pred_action_' + model_name +'.npy','wb') as f:
         np.save(f, overall_pred_action)
 
-    with open('./saved_predictions/pred_reason_'+ model_name +'.npy','wb') as f:
+    with open(root_dir+'pred_reason_'+ model_name +'.npy','wb') as f:
         np.save(f, overall_pred_reason)
 
-    with open('./saved_predictions/trgt_action_' + model_name +'.npy','wb') as f:
+    with open(root_dir + 'trgt_action_' + model_name +'.npy','wb') as f:
         np.save(f, overall_trgt_action)
 
-    with open('./saved_predictions/trgt_reason_'+ model_name +'.npy','wb') as f:
+    with open(root_dir+'trgt_reason_'+ model_name +'.npy','wb') as f:
         np.save(f, overall_trgt_reason)
 
 
 if __name__ == "__main__":
     # model_name = 'v3_hard_sel_1039'
     # version = 'v3'
-    model_name = 'v4_mhsa_test39'
-    version = 'v4'
-    sel_k = 10
+    # sel_k = 10
+    model_name = 'whole_attention_v1_19'
+    version = 'whole_attention'
+    
     main(model_name,version)
