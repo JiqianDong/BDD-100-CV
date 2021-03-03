@@ -6,6 +6,15 @@ from decision_generator_model import *
 
 from sklearn.metrics import f1_score
 
+def get_model(num_classes):
+    # model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True,
+    #                                                             image_mean=image_mean,
+    #                                                             image_std=image_std)
+
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features,num_classes)
+    return model
 
 def get_encoder(model_name):
     if model_name == 'mobile_net':
@@ -14,9 +23,14 @@ def get_encoder(model_name):
     elif model_name == 'resnet':
         md = torchvision.models.resnet50(pretrained=True)
         encoder = nn.Sequential(*list(md.children())[:-2])
-    return encoder
+    else:
 
-def main(model_name,version=None,sel_k=10):
+        raise ValueError("unrecognized encoder model name: "+encoder_name)
+    return encoder
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def main(model_name,version=None,sel_k=10,encoder_name='resnet',encoder_dims=(2048,6,10)):
     device = torch.device("cuda:0")
     batch_size = 10
     ## Data loader
@@ -38,17 +52,8 @@ def main(model_name,version=None,sel_k=10):
 
     val_loader = DataLoader(val_bdd_oia_dataset,shuffle=False,batch_size=batch_size,collate_fn=utils.collate_fn)
 
-    batch_size = 10
 
-    def get_model(num_classes):
-        # model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True,
-        #                                                             image_mean=image_mean,
-        #                                                             image_std=image_std)
 
-        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
-        in_features = model.roi_heads.box_predictor.cls_score.in_features
-        model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features,num_classes)
-        return model
 
 
     fastercnn = get_model(10)
@@ -56,10 +61,17 @@ def main(model_name,version=None,sel_k=10):
     fastercnn.load_state_dict(checkpoint['model'])
 
     if version == "whole_attention":
-        encoder = get_encoder("mobile_net")
+        encoder = get_encoder(encoder_name)
         decision_generator = DecisionGenerator_whole_attention(encoder,
-                                                               encoder_dims=(1280,6,10),
+                                                               encoder_dims=encoder_dims,
                                                                device=device)
+
+        print("len of params: ",count_parameters(decision_generator))
+        model_parameters = filter(lambda p: p.requires_grad, decision_generator.parameters())
+        params = sum([np.prod(p.size()) for p in model_parameters])
+        print("len of params: ",params)
+
+        raise Exception
 
         checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/whole_attention/%s.pth"%model_name)
     else:
@@ -151,7 +163,13 @@ if __name__ == "__main__":
     # model_name = 'v3_hard_sel_1039'
     # version = 'v3'
     # sel_k = 10
-    model_name = 'whole_attention_v1_19'
     version = 'whole_attention'
+
+
+    encoder_name, encoder_dims = 'resnet',(2048,6,10)
+    model_name = version+'_'+encoder_name+'_39'
     
-    main(model_name,version)
+    # model_name = 'whole_attention_v1_39'
+    # encoder_name, encoder_dims = 'mobile_net',(1280,6,10)
+
+    main(model_name,version,encoder_name = encoder_name,encoder_dims = encoder_dims)

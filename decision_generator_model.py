@@ -430,3 +430,71 @@ class DecisionGenerator_whole_attention(nn.Module):
             return loss_dic
         else:
             return {"action":torch.sigmoid(actions),"reasons":torch.sigmoid(reasons)}
+
+
+class DecisionGenerator_no_attention(nn.Module):
+    def __init__(self, encoder, encoder_dims, device, action_num=4, explanation_num=21):
+        super().__init__()
+
+        """
+        encoder_dims = (F,H,W) 
+            F:Feature shape (1280 for mobile net, 2048 for resnet)
+            H,W = image feature height, width 
+        """
+        self.encoder = encoder
+
+        assert len(encoder_dims) == 3, "encoder_dims has to be a triplet with shape (F,H,W)" 
+
+        F,H,W = encoder_dims
+        in_dim = H*W*F
+        self.action_branch = nn.Sequential(
+                                nn.Linear(in_dim,12),
+                                nn.ReLU(),
+                                # nn.Dropout(),
+                                nn.Linear(12,action_num))
+
+        self.explanation_branch = nn.Sequential(
+                                nn.Linear(in_dim,12),
+                                nn.ReLU(),
+                                # nn.Dropout(),
+                                nn.Linear(12, explanation_num))
+
+        self.action_loss_fn, self.reason_loss_fn = self.loss_fn(device)
+
+    def loss_fn(self,device):
+        class_weights = [1, 1, 2, 2]
+        w = torch.FloatTensor(class_weights).to(device)
+        action_loss = nn.BCEWithLogitsLoss(pos_weight=w).to(device)
+        explanation_loss = nn.BCEWithLogitsLoss().to(device)
+        return action_loss,explanation_loss
+
+
+    def forward(self,images,targets=None):
+        images = torch.stack(images)
+        if self.training:
+            assert targets is not None
+            target_reasons = torch.stack([t['reason'] for t in targets])
+            target_actions = torch.stack([t['action'] for t in targets])
+        # print(images.shape)
+        features = self.encoder(images) # 
+        # print(features.shape)
+
+        B,F,H,W = features.shape
+
+        # print(features.view(B,F,H*W).transpose(1,2).shape)
+        # print(transformed_feature.shape)
+        feature_polled = torch.flatten(features,start_dim=1)
+        # print(feature_polled.shape)
+
+        # print(feature_polled.shape)
+
+        actions = self.action_branch(feature_polled)
+        reasons = self.explanation_branch(feature_polled)
+
+        if self.training:
+            action_loss = self.action_loss_fn(actions, target_actions)
+            reason_loss = self.reason_loss_fn(reasons, target_reasons)
+            loss_dic = {"action_loss":action_loss, "reason_loss":reason_loss}
+            return loss_dic
+        else:
+            return {"action":torch.sigmoid(actions),"reasons":torch.sigmoid(reasons)}

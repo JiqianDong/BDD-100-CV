@@ -79,9 +79,7 @@ def get_loader(version):
     label_dir = './data/bdd_oia/lastframe/labels/'
 
 
-
-
-    if version == "whole_attention":
+    if version == "whole_attention" or "no_attention":
         bdd_oia_dataset = BDD_OIA(image_dir,label_dir+'train_25k_images_actions.json',
                                     label_dir+'train_25k_images_reasons.json',
                                     image_min_size=180)
@@ -100,28 +98,48 @@ def get_loader(version):
 
 if __name__ == "__main__":
 
-    model_name = "whole_attention_v1_"
-    version = "whole_attention"
+    # model_name = "whole_attention_v1_"
+    # version = "whole_attention"
+    # encoder_name = "mobile_net"
+    # encoder_dims=(1280,6,10)
+##########################################################################
+    # model_name = "whole_attention_resnet_"
+    # version = "whole_attention"
+    # encoder_name = "resnet"
+    # encoder_dims=(2048,6,10)
+##########################################################################
+    model_name = "no_attention_resnet_"
+    version = "no_attention"
+    encoder_name = "resnet"
+    encoder_dims = (2048,6,10)
 
-
+##########################################################################
     # model_name = 'v4_mhsa_test'
     # version = 'v4'
     # sel_k = 10
-    
+ ##########################################################################
+
     device = torch.device("cuda:0")
     batch_size = 10
     training_loader = get_loader(version)
 
-    
 
     num_iters = 0
     if version == 'whole_attention':
-        encoder = get_encoder("mobile_net")
+        encoder = get_encoder(encoder_name)
         decision_generator = DecisionGenerator_whole_attention(encoder,
-                                                               encoder_dims=(1280,6,10),
+                                                               encoder_dims=encoder_dims,
                                                                device=device)
 
         writer = SummaryWriter('./runs/whole_attention/'+model_name+'/')
+
+    elif version == "no_attention":
+        encoder = get_encoder(encoder_name)
+        decision_generator = DecisionGenerator_no_attention(encoder,
+                                                            encoder_dims=encoder_dims,
+                                                            device=device)
+        writer = SummaryWriter('./runs/whole_attention/'+model_name+'/')
+
     else:
         fastercnn = get_model(10)
         checkpoint = torch.load('saved_models/bdd100k_24.pth')
