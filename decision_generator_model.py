@@ -78,7 +78,7 @@ class MHSA2(nn.Module):
 
 
 class DecisionGenerator(nn.Module):
-    def __init__(self,faster_rcnn_model,device,batch_size,select_k=2,action_num=4,explanation_num=21,freeze_rcnn=True):
+    def __init__(self,faster_rcnn_model,device,batch_size,select_k=1,action_num=4,explanation_num=21,freeze_rcnn=True):
         super().__init__()
 
         self.rcnn = faster_rcnn_model
@@ -88,7 +88,7 @@ class DecisionGenerator(nn.Module):
             for param in self.rcnn.parameters():
                 param.requires_grad = False
                 self.rcnn.eval()
-        self.object_attention = MHSA(1024, kqv_dim=10, num_heads=8)
+        self.object_attention = MHSA(1024, kqv_dim=10, num_heads=5)
 
         self.roi_pooling_conv = nn.Conv1d(in_channels=1000,out_channels=select_k,kernel_size=1)
 
@@ -162,7 +162,7 @@ class DecisionGenerator_v1(nn.Module):
             for param in self.rcnn.parameters():
                 param.requires_grad = False
                 self.rcnn.eval()
-        self.object_attention = MHSA(1024, kqv_dim=10, num_heads=8)
+        self.object_attention = MHSA(1024, kqv_dim=10, num_heads=5)
         self.action_branch = nn.Linear(1024,action_num)
 
         self.explanation_branch = nn.Linear(1024, explanation_num)
@@ -206,8 +206,8 @@ class DecisionGenerator_v1(nn.Module):
             return {"action":torch.sigmoid(actions),"reasons":torch.sigmoid(reasons)}
 
 
-class DecisionGenerator_v3(nn.Module): # attention with only one layer
-    def __init__(self,faster_rcnn_model,device,batch_size,select_k=10,action_num=4,explanation_num=21,freeze_rcnn=True):
+class DecisionGenerator_v3(nn.Module): # hard attention
+    def __init__(self,faster_rcnn_model,device,batch_size,select_k=5,action_num=4,explanation_num=21,freeze_rcnn=True):
         super().__init__()
 
         self.rcnn = faster_rcnn_model

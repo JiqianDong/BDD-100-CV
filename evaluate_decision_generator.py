@@ -30,7 +30,7 @@ def get_encoder(model_name):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-def main(model_name,version=None,sel_k=10,encoder_name='resnet',encoder_dims=(2048,6,10)):
+def main(model_name,version=None,sel_k=None,encoder_name='resnet',encoder_dims=(2048,6,10)):
     device = torch.device("cuda:0")
     batch_size = 10
     ## Data loader
@@ -66,14 +66,21 @@ def main(model_name,version=None,sel_k=10,encoder_name='resnet',encoder_dims=(20
                                                                encoder_dims=encoder_dims,
                                                                device=device)
 
-        print("len of params: ",count_parameters(decision_generator))
-        model_parameters = filter(lambda p: p.requires_grad, decision_generator.parameters())
-        params = sum([np.prod(p.size()) for p in model_parameters])
-        print("len of params: ",params)
+        # print("len of params: ",count_parameters(decision_generator))
+        # model_parameters = filter(lambda p: p.requires_grad, decision_generator.parameters())
+        # params = sum([np.prod(p.size()) for p in model_parameters])
+        # print("len of params: ",params)
 
-        raise Exception
+        # raise Exception
 
         checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/whole_attention/%s.pth"%model_name)
+    elif version == "no_attention":
+        print("load no attention model")
+        encoder = get_encoder(encoder_name)
+        decision_generator = DecisionGenerator_no_attention(encoder,
+                                                            encoder_dims=encoder_dims,
+                                                            device=device)
+        checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/%s.pth"%model_name)
     else:
         if version=='v3':
             decision_generator = DecisionGenerator_v3(fastercnn,device,batch_size, select_k=sel_k)
@@ -84,13 +91,13 @@ def main(model_name,version=None,sel_k=10,encoder_name='resnet',encoder_dims=(20
         else:
             ############# Load version 2 ###########################
             decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
-            checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/%s.pth"%model_name)
+        checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/%s.pth"%model_name)
         
     decision_generator = decision_generator.to(device)
-    
+    # print(count_parameters(decision_generator))
     decision_generator.load_state_dict(checkpoint["model"])
     
-
+    print(count_parameters(decision_generator))
     ############# Load version 1 ###########################
     # from decision_generator_model import DecisionGenerator_v1
     # decision_generator = DecisionGenerator_v1(fastercnn,device,batch_size)
@@ -160,16 +167,25 @@ def main(model_name,version=None,sel_k=10,encoder_name='resnet',encoder_dims=(20
 
 
 if __name__ == "__main__":
-    # model_name = 'v3_hard_sel_1039'
+    encoder_name = None
+    encoder_dims = None
+    sel_k = None
+    # model_name = 'bdd_oia_head1_39'
     # version = 'v3'
+    # model_name = 'v3_hard_sel_1039'
     # sel_k = 10
-    version = 'whole_attention'
-
-
+    # 
+    version = 'no_attention'
+    # version = 'whole_attention'
     encoder_name, encoder_dims = 'resnet',(2048,6,10)
-    model_name = version+'_'+encoder_name+'_39'
+    model_name = 'no_attention_resnet_39'
+    # model_name = version+'_'+encoder_name+'_39'
     
-    # model_name = 'whole_attention_v1_39'
+    # model_name = 'whole_attention_mobile_net_39'
     # encoder_name, encoder_dims = 'mobile_net',(1280,6,10)
 
-    main(model_name,version,encoder_name = encoder_name,encoder_dims = encoder_dims)
+    # model_name = 'v4_mhsa_test39'
+    # version = 'v4'
+
+
+    main(model_name,version,sel_k=sel_k,encoder_name = encoder_name,encoder_dims = encoder_dims)

@@ -25,7 +25,8 @@ def get_model(num_classes,image_mean=None,image_std=None):
     return model
 
 
-
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def train_one_epoch2(model, optimizer, data_loader, device, epoch, print_freq):
@@ -155,8 +156,10 @@ if __name__ == "__main__":
         else:
             decision_generator = DecisionGenerator(fastercnn,device,batch_size, select_k=sel_k)
     
-    decision_generator = decision_generator.to(device)
 
+    
+    decision_generator = decision_generator.to(device)
+    print(count_parameters(decision_generator))
     #### continue training 
     # checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/v3_hard_sel_1039.pth")
     # decision_generator.load_state_dict(checkpoint["model"])
