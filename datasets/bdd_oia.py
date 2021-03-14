@@ -51,6 +51,7 @@ class BDD_OIA(Dataset):
         target = {}
         target['action'] = self.targets[idx][:4]
         target['reason'] = self.reasons[idx]
+        target['img_name'] = imgName
 
         img_ = Image.open(imgName)
 

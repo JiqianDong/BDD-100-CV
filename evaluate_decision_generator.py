@@ -175,11 +175,11 @@ if __name__ == "__main__":
     # model_name = 'v3_hard_sel_1039'
     # sel_k = 10
     # 
-    version = 'no_attention'
-    # version = 'whole_attention'
+    # version = 'no_attention'
+    version = 'whole_attention'
     encoder_name, encoder_dims = 'resnet',(2048,6,10)
-    model_name = 'no_attention_resnet_39'
-    # model_name = version+'_'+encoder_name+'_39'
+    # model_name = 'no_attention_resnet_39'
+    model_name = version+'_'+encoder_name+'_39'
     
     # model_name = 'whole_attention_mobile_net_39'
     # encoder_name, encoder_dims = 'mobile_net',(1280,6,10)
