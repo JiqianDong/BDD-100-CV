@@ -159,7 +159,7 @@ if __name__ == "__main__":
 
     
     decision_generator = decision_generator.to(device)
-    print(count_parameters(decision_generator))
+ 
     #### continue training 
     # checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/v3_hard_sel_1039.pth")
     # decision_generator.load_state_dict(checkpoint["model"])

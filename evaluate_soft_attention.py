@@ -4,52 +4,20 @@ from datasets.bdd_oia import BDD_OIA_NLP
 
 from soft_attention_model import *
 
+from nltk.translate.bleu_score import corpus_bleu
 
 
-def get_encoder():
-    mobilenet = torchvision.models.mobilenet_v2(pretrained=True)
-    encoder = nn.Sequential(*list(mobilenet.children())[:-1])
+def get_encoder(model_name):
+    if model_name == 'mobile_net':
+        md = torchvision.models.mobilenet_v2(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-1])
+    elif model_name == 'resnet':
+        md = torchvision.models.resnet50(pretrained=True)
+        encoder = nn.Sequential(*list(md.children())[:-2])
+    else:
+
+        raise ValueError("unrecognized encoder model name: "+encoder_name)
     return encoder
-
-
-
-def train_one_epoch2(encoder, decoder, decoder_optimizer, data_loader, device, epoch, print_freq, encoder_optimizer=None):
-    global num_iters
-    encoder.train()
-    decoder.train()
-    metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter("lr", utils.SmoothedValue(window_size=1, fmt="{value:.6f}"))
-    header = "Epoch: [{}]".format(epoch)
-
-    for image_batch, labels_batch in metric_logger.log_every(data_loader, print_freq, header):
-
-        if len(image_batch)!=len(labels_batch):
-            continue
-        
-        reasons_batch = [l['reason'].to(device) for l in labels_batch]
-        image_features = encoder(torch.stack(image_batch).to(device))
-        loss ,scores, attention_weights, hs = decoder(image_features, reasons_batch)
-        num_iters += 1
-
-        loss_value = loss.item()
-
-        writer.add_scalar("Loss/train", loss_value, num_iters)
-        writer.add_scalar("Decoder earning rate", decoder_optimizer.param_groups[0]["lr"], num_iters)
-
-        if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
-            print(loss_value)
-            sys.exit(1)
-
-        decoder_optimizer.zero_grad()
-        loss.backward()
-        decoder_optimizer.step()
-
-        metric_logger.update(loss=loss_value)
-        metric_logger.update(lr=decoder_optimizer.param_groups[0]["lr"])
-
-    return loss_value
-
 
 
 def get_loader(batch_size):
@@ -67,68 +35,74 @@ def get_loader(batch_size):
     NULL_INDEX = bdd_oia_dataset.word_to_ind['NULL']
     DICT_SIZE = len(bdd_oia_dataset.word_to_ind.keys())
 
-    return test_loader,NULL_INDEX,DICT_SIZE
+    return test_loader,NULL_INDEX,DICT_SIZE,bdd_oia_dataset
 
 if __name__ == "__main__":
 
-    model_name = 'soft_attention'
-    version = 'v1'
-    num_epochs = 15
-    # sel_k = 10
-    
-    DEVICE = torch.device("cuda:1")
-    batch_size = 10
-    
-    training_loader,NULL_INDEX,DICT_SIZE = get_loader(batch_size)
+    DEVICE = torch.device("cpu")
 
-    writer = SummaryWriter('./runs/soft_attention/'+model_name+'/')
+    encoder_name,image_f_dim,model_name,using_gate = 'mobile_net',1280, "soft_attention14", True 
+    # encoder_name,image_f_dim,model_name,using_gate = 'resnet',2048, "soft_attention_resnet14", True
+    # encoder_name,image_f_dim,model_name,using_gate = 'resnet',2048, "soft_attention_resnet_nogate14",False
 
-    encoder = get_encoder()
-    decoder = ReasonDecoder(image_f_dim=1280,\
+    test_loader,NULL_INDEX,DICT_SIZE,bdd_oia_dataset = get_loader(10)
+    encoder = get_encoder(encoder_name)
+
+
+    ind_to_word = bdd_oia_dataset.ind_to_word
+    word_to_ind = bdd_oia_dataset.word_to_ind
+
+
+    decoder = ReasonDecoder(image_f_dim=image_f_dim,\
                             embedding_dim=128, \
                             hidden_dim=128, \
                             dict_size=DICT_SIZE, \
-                            device=DEVICE,\
+                            device='cpu',\
                             null_index=NULL_INDEX, \
-                            using_gate=True)
+                            using_gate=using_gate)
+
+    checkpoint = torch.load('./saved_models/soft_attention/'+model_name+'.pth')
+    encoder.load_state_dict(checkpoint['encoder'])
+    decoder.load_state_dict(checkpoint['decoder'])
+
+    encoder.eval()
+    decoder.eval()
 
     encoder.to(DEVICE)
     decoder.to(DEVICE)
-    #### continue training 
-    # checkpoint = torch.load("/home/ai/Desktop/Jiqian work/work4/saved_models/v3_hard_sel_1039.pth")
-    # decision_generator.load_state_dict(checkpoint["model"])
 
-    decoder_params = [p for p in decoder.parameters() if p.requires_grad]
-    # print(len(decoder_params))
-    decoder_optimizer = torch.optim.SGD(decoder_params, lr=0.001, momentum=0.9, weight_decay=0.0005)
+    total_reason_predicted = []
+    total_reason_label = []
 
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer)
+    for batch_num,(images_batch,labels_batch) in enumerate(tqdm(test_loader)):
+        image_batch = torch.stack(images_batch).to(DEVICE)
+        reason_batch = [l['reason'] for l in labels_batch]
+        reasons = [[ind_to_word[i] for i in rb.numpy()] for rb in reason_batch]
+        total_reason_label.extend(reasons)
+
+        image_f = encoder(image_batch)
+        predictions = decoder.generate_reason(image_f)
+        pred_batch = predictions[-1].T.detach().cpu()  # B * T
+
+        for p in pred_batch:
+            tmp = []
+            for i in p.numpy():
+                tmp.append(ind_to_word[i])
+                if ind_to_word[i]=='EOS':
+                    break
+            total_reason_predicted.append(tmp)
+        # break
+
+    assert len(total_reason_predicted) == len(total_reason_label)
+
+    with open('./saved_predictions/soft_attention/'+model_name+'_pred.pkl','wb') as f:
+        pickle.dump(total_reason_predicted,f)
+    with open('./saved_predictions/soft_attention/'+model_name+'_label.pkl','wb') as f:
+        pickle.dump(total_reason_label,f)
+
+    bleu = corpus_bleu(total_reason_label,total_reason_predicted,(1,0,0,0))
+    print("bleu score is: ", bleu)
 
 
-
-    for epoch in tqdm(range(num_epochs)):
-        # try:
-        loss_value = train_one_epoch2(encoder,
-                                      decoder, 
-                                      decoder_optimizer, 
-                                      training_loader, 
-                                      DEVICE, 
-                                      epoch, 
-                                      print_freq=200)
-        lr_scheduler.step(loss_value)
-        # except Exception as e:
-        #     print(e)
-        
-        # train_one_epoch2(decision_generator, optimizer, training_loader, device, epoch, print_freq=200)
-
-        if (epoch+1)%5==0:
-            save_name = "../saved_models/soft_attention/%s"%model_name + str(epoch) + ".pth"
-            torch.save(
-                {"encoder": encoder.state_dict(), 
-                "decoder":decoder.state_dict(),
-                "decoder_optimizer": decoder_optimizer.state_dict()},
-                save_name,
-            )
-            print("Saved model", save_name)
 
 

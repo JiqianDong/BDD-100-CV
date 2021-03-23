@@ -79,7 +79,8 @@ def get_loader(batch_size):
 if __name__ == "__main__":
     encoder_model = 'resnet'
     image_f_dim = 2048  
-    model_name = 'soft_attention_resnet'
+    using_gate = False
+    model_name = 'soft_attention_resnet_nogate'
 
     # encoder_model = 'mobile_net'
     # image_f_dim = 1280
@@ -102,7 +103,7 @@ if __name__ == "__main__":
                             dict_size=DICT_SIZE, \
                             device=DEVICE,\
                             null_index=NULL_INDEX, \
-                            using_gate=True)
+                            using_gate=using_gate)
 
     encoder.to(DEVICE)
     decoder.to(DEVICE)

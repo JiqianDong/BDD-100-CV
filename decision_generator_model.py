@@ -207,7 +207,7 @@ class DecisionGenerator_v1(nn.Module):
 
 
 class DecisionGenerator_v3(nn.Module): # hard attention
-    def __init__(self,faster_rcnn_model,device,batch_size,select_k=5,action_num=4,explanation_num=21,freeze_rcnn=True):
+    def __init__(self,faster_rcnn_model,device,batch_size,select_k=5s,action_num=4,explanation_num=21,freeze_rcnn=True):
         super().__init__()
 
         self.rcnn = faster_rcnn_model

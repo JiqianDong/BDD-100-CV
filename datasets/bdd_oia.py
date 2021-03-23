@@ -61,7 +61,7 @@ class BDD_OIA(Dataset):
 
 
 class BDD_OIA_NLP(Dataset):
-    def __init__(self, image_root, label_root, ind_to_word_root, image_min_size=120):
+    def __init__(self, image_root, label_root, ind_to_word_root,word_to_ind_root, image_min_size=120):
         super().__init__()
         import torchvision.transforms as T
 
